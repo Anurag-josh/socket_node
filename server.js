@@ -3,6 +3,7 @@ const http = require('http');
 const https = require('https');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const mongoose = require('mongoose');
 
 const app = express();
 app.use(cors());
@@ -16,20 +17,66 @@ const io = new Server(server, {
     }
 });
 
-io.on('connection', (socket) => {
+// MongoDB Connection
+mongoose.connect('mongodb://127.0.0.1:27017/community')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// MongoDB Schemas and Models
+const commentSchema = new mongoose.Schema({
+    id: String,
+    sender: String,
+    text: String,
+    timestamp: String,
+});
+
+const postSchema = new mongoose.Schema({
+    id: String,
+    sender: String,
+    text: String,
+    imageUrl: String,
+    timestamp: String,
+    comments: [commentSchema]
+});
+
+const Post = mongoose.model('Post', postSchema);
+
+io.on('connection', async (socket) => {
     console.log('User connected:', socket.id);
 
+    // Fetch existing posts and send to the connected user
+    try {
+        const posts = await Post.find().sort({ _id: -1 }).limit(100);
+        socket.emit('initial_posts', posts);
+    } catch (err) {
+        console.error('Error fetching posts:', err);
+    }
+
     // Listen for incoming posts
-    socket.on('send_post', (postData) => {
+    socket.on('send_post', async (postData) => {
         console.log('New post received:', postData);
-        // Broadcast the post to everyone EXCEPT the sender
-        socket.broadcast.emit('receive_post', postData);
+        try {
+            const newPost = new Post(postData);
+            await newPost.save();
+            // Broadcast the post to everyone EXCEPT the sender
+            socket.broadcast.emit('receive_post', postData);
+        } catch (err) {
+            console.error('Error saving post:', err);
+        }
     });
 
     // Listen for comments
-    socket.on('add_comment', (data) => {
+    socket.on('add_comment', async (data) => {
         console.log('New comment received:', data);
-        socket.broadcast.emit('receive_comment', data);
+        try {
+            await Post.findOneAndUpdate(
+                { id: data.postId },
+                { $push: { comments: data.comment } }
+            );
+            socket.broadcast.emit('receive_comment', data);
+        } catch (err) {
+            console.error('Error adding comment:', err);
+        }
     });
 
     socket.on('disconnect', () => {
