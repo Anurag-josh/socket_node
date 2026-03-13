@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const cors = require('cors');
 
@@ -42,3 +43,12 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`Socket.IO Server is running on port ${PORT}`);
     console.log(`Ensure your devices connect to http://<YOUR_LOCAL_IP>:${PORT}`);
 });
+
+// Function to ping the deployed server every 10 minutes
+setInterval(() => {
+    https.get('https://socket-node-6fls.onrender.com', (res) => {
+        console.log('Ping sent to keep server alive');
+    }).on('error', (err) => {
+        console.log('Ping error:', err.message);
+    });
+}, 10 * 60 * 1000); // 10 minutes in milliseconds
