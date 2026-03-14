@@ -78,6 +78,29 @@ io.on('connection', async (socket) => {
             console.error('Error adding comment:', err);
         }
     });
+    socket.on('delete_post', async (postId) => {
+        console.log('Delete post received:', postId);
+        try {
+            await Post.findOneAndDelete({ id: postId });
+            socket.broadcast.emit('post_deleted', postId);
+        } catch (err) {
+            console.error('Error deleting post:', err);
+        }
+    });
+
+    socket.on('edit_post', async ({ postId, text }) => {
+        console.log('Edit post received:', { postId, text });
+        try {
+            await Post.findOneAndUpdate(
+                { id: postId },
+                { $set: { text: text } }
+            );
+            socket.broadcast.emit('post_edited', { postId, text });
+        } catch (err) {
+            console.error('Error editing post:', err);
+        }
+    });
+
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
